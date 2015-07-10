@@ -5,38 +5,41 @@ from tornado.ioloop import IOLoop
 
 ADDRESS = '127.0.0.1'
 PORT = 9999
-tcp_client = tcpclient.TCPClient()
-stream = None
 
 
-@gen.coroutine
-def light_connect():
-    """
-    """
-    global tcp_client
-    global stream
-    addr, port = ADDRESS, PORT
-    print("connecting to {}:{}".format(addr, port))
-    try:
-        stream = yield tcp_client.connect(ADDRESS, PORT, max_buffer_size=4)
-        print("Connected")
-        stream.read_until_close(streaming_callback=command)
-    except Exception, e:
-        print('Connection error: {}'.format(e))
-        sys.exit()
+class LightClient(object):
+    def __init__(self):
+        self.tcp_client = tcpclient.TCPClient()
+        self.stream = None
 
+    @gen.coroutine
+    def connect(self, address=ADDRESS, port=PORT):
+        print("connecting to {}:{}".format(address, port))
+        try:
+            self.stream = yield self.tcp_client.connect(ADDRESS, PORT, max_buffer_size=36)
+            self.stream.set_close_callback(self.on_close)
+            print("Connected")
 
-def command(data):
-    data = data.strip()
-    print(data)
-    if data == 'red':
-        print('Switched!')
-    if data == 'stop':
-        stream.close()
+            self.stream.read_until_close(streaming_callback=self.command)
+        except Exception, e:
+            print('Connection error: {}'.format(e))
+            self.stream.close()
+            IOLoop.current().stop()
+            sys.exit()
+
+    def command(self, data):
+        data = data.strip()
+        print(data)
+        if data == 'red':
+            print('Switched!')
+
+    def on_close(self):
         print("Closing connection")
-        IOLoop.instance().stop()
+        self.stream.close()
+        IOLoop.current().stop()
 
 
 if __name__ == '__main__':
-    light_connect()
-    IOLoop.instance().start()
+    client = LightClient()
+    client.connect()
+    IOLoop.current().start()
