@@ -16,7 +16,7 @@ class LightClient(object):
     def connect(self, address=ADDRESS, port=PORT):
         print("connecting to {}:{}".format(address, port))
         try:
-            self.stream = yield self.tcp_client.connect(ADDRESS, PORT, max_buffer_size=36)
+            self.stream = yield self.tcp_client.connect(ADDRESS, PORT)
             self.stream.set_close_callback(self.on_close)
             print("Connected")
 
