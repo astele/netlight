@@ -8,9 +8,30 @@ PORT = 9999
 
 
 class LightClient(object):
+    BLACK = (0, 0, 0)
+    command_map = {
+        18: 'set_on',
+        19: 'set_off',
+        32: 'set_color'
+    }
+
     def __init__(self):
         self.tcp_client = tcpclient.TCPClient()
         self.stream = None
+        self.on = False
+        self.color = self.BLACK
+
+    def set_on(self):
+        self.on = True
+
+    def set_off(self):
+        self.set_color(self.BLACK)
+        self.on = False
+
+    def set_color(self, new_color):
+        self.set_on()
+        if isinstance(new_color, tuple) and len(new_color) == 3:
+            self.color = new_color
 
     @gen.coroutine
     def connect(self, address=ADDRESS, port=PORT):
@@ -20,14 +41,15 @@ class LightClient(object):
             self.stream.set_close_callback(self.on_close)
             print("Connected")
 
-            self.stream.read_until_close(streaming_callback=self.command)
+            self.stream.read_until_close(streaming_callback=self.read_command)
         except Exception, e:
             print('Connection error: {}'.format(e))
-            self.stream.close()
+            if self.stream:
+                self.stream.close()
             IOLoop.current().stop()
             sys.exit()
 
-    def command(self, data):
+    def read_command(self, data):
         data = data.strip()
         print(data)
         if data == 'red':
