@@ -36,19 +36,18 @@ class LightClient(object):
 
     @gen.coroutine
     def connect(self, address=ADDRESS, port=PORT):
-        print("connecting to {}:{}".format(address, port))
+        print("Connecting to {}:{}".format(address, port))
         try:
-            self.stream = yield self.tcp_client.connect(ADDRESS, PORT)
+            self.stream = yield self.tcp_client.connect(address, port)
             self.stream.set_close_callback(self.on_close)
             print("Connected")
             self.stream.read_until_close(streaming_callback=self.read_command)
 
         except Exception, e:
-            print('Connection error: {}'.format(e))
-            if self.stream:
+            if self.stream is not None:
                 self.stream.close()
             IOLoop.current().stop()
-            sys.exit()
+            sys.exit('Connection error: %s' % e)
 
     def read_command(self, data):
         tlv = data.strip().decode('hex')
@@ -69,14 +68,18 @@ class LightClient(object):
                 pass
             print('Is on: {}, color: {}'.format(self.on, self.color))
 
-
     def on_close(self):
-        print("Closing connection")
-        self.stream.close()
+        if self.stream is not None:
+            self.stream.close()
         IOLoop.current().stop()
+        sys.exit('Connection closed by server')
 
 
 if __name__ == '__main__':
     client = LightClient()
     client.connect()
-    IOLoop.current().start()
+    try:
+        IOLoop.current().start()
+    except KeyboardInterrupt:
+        IOLoop.current().stop()
+        sys.exit()
