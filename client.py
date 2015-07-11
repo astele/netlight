@@ -38,7 +38,7 @@ class LightClient(object):
     def connect(self, address=ADDRESS, port=PORT):
         print("Connecting to {}:{}".format(address, port))
         try:
-            self.stream = yield self.tcp_client.connect(address, port)
+            self.stream = yield self.tcp_client.connect(address, int(port))
             self.stream.set_close_callback(self.on_close)
             print("Connected")
             self.stream.read_until_close(streaming_callback=self.read_command)
@@ -77,7 +77,13 @@ class LightClient(object):
 
 if __name__ == '__main__':
     client = LightClient()
-    client.connect()
+    try:
+        address = raw_input('Enter light address:') or ADDRESS
+        port = raw_input('Enter light port:') or PORT
+    except (ValueError, EOFError):
+        pass
+    client.connect(address, port)
+
     try:
         IOLoop.current().start()
     except KeyboardInterrupt:
