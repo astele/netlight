@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from struct import unpack, Struct
 import sys
 from tornado import gen, tcpclient
 from tornado.ioloop import IOLoop
@@ -40,8 +41,8 @@ class LightClient(object):
             self.stream = yield self.tcp_client.connect(ADDRESS, PORT)
             self.stream.set_close_callback(self.on_close)
             print("Connected")
-
             self.stream.read_until_close(streaming_callback=self.read_command)
+
         except Exception, e:
             print('Connection error: {}'.format(e))
             if self.stream:
@@ -50,10 +51,24 @@ class LightClient(object):
             sys.exit()
 
     def read_command(self, data):
-        data = data.strip()
-        print(data)
-        if data == 'red':
-            print('Switched!')
+        tlv = data.strip().decode('hex')
+        args = ()
+        try:
+            ctype, length = unpack('>bh', tlv[:3])
+            if length > 0:
+                value = unpack('>%iB' % length, tlv[3:3 + length])
+                args += (value,)
+        except Exception, e:
+            print 'Incorrect command format: {}, tlv: {}'.format(e, (tlv,))
+        else:
+            print ctype, length, args
+            try:
+                command = getattr(self, self.command_map.get(ctype))
+                command(*args)
+            except (AttributeError, TypeError):
+                pass
+            print('Is on: {}, color: {}'.format(self.on, self.color))
+
 
     def on_close(self):
         print("Closing connection")
