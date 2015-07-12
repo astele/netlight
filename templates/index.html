@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Net Light monitor</title>
+    <style type="text/css">
+        body {
+            background-color: rgb{{ netlight.show_color() }};
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            font-size: 25px;
+            padding: 20px 0 0 50px;
+            {% if not netlight.on %}
+            color: #555;
+            {% end %}
+        }
+    </style>
+</head>
+<body>
+    <p>
+        {{ netlight.__str__() }}
+    </p>
+</body>
+</html>

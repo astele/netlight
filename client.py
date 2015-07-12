@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-from struct import unpack, Struct
+import os
+from struct import unpack
 import sys
+
 from tornado import gen, tcpclient, web
 from tornado.ioloop import IOLoop
 
@@ -9,6 +11,7 @@ PORT = 9999
 FRONTEND_PORT = 9990
 ON_COLOR = (255, 255, 255)
 OFF_COLOR = (0, 0, 0)
+
 
 class LightClient(object):
     command_map = {
@@ -20,7 +23,7 @@ class LightClient(object):
     def __init__(self):
         self.stream = None
         self.on = False
-        self._color = ON_COLOR
+        self._color = OFF_COLOR
 
     def __str__(self):
         return "I'm switched {state} with color {color}".format(
@@ -33,6 +36,8 @@ class LightClient(object):
 
     def turn_on(self):
         self.on = True
+        if self._color == OFF_COLOR:
+            self.set_color(ON_COLOR)
 
     def turn_off(self):
         self.on = False
@@ -57,17 +62,16 @@ class LightClient(object):
             sys.exit('Connection error: %s' % e)
 
     def read_command(self, data):
-        tlv = data.strip().decode('hex')
         args = ()
         try:
+            tlv = data.strip().decode('hex')
             ctype, length = unpack('>bh', tlv[:3])
             if length > 0:
                 value = unpack('>%iB' % length, tlv[3:3 + length])
                 args += (value,)
         except Exception, e:
-            print 'Incorrect command format: {}, tlv: {}'.format(e, (tlv,))
+            print 'Incorrect command format: {}, data: {}'.format(e, data)
         else:
-            # print ctype, length, args
             try:
                 command = getattr(self, self.command_map.get(ctype))
                 command(*args)
@@ -87,12 +91,13 @@ class MainHandler(web.RequestHandler):
         self.netlight = netlight
 
     def get(self, *args, **kwargs):
-        self.write(self.netlight.__str__())
+        self.render('index.html', netlight=self.netlight)
 
 
 def make_app(netlight):
     settings = {
         'debug': True,
+        'template_path': os.path.join(os.path.dirname(__file__), 'templates'),
     }
     return web.Application([
         (r'/', MainHandler, dict(netlight=netlight)),
