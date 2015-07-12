@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 from struct import unpack, Struct
 import sys
-from tornado import gen, tcpclient
+from tornado import gen, tcpclient, web
 from tornado.ioloop import IOLoop
 
 ADDRESS = '127.0.0.1'
 PORT = 9999
+FRONTEND_PORT = 9990
 
 
 class LightClient(object):
@@ -40,8 +41,8 @@ class LightClient(object):
 
     @gen.coroutine
     def connect(self, address=ADDRESS, port=PORT):
-        print("Connecting to {}:{}".format(address, port))
         try:
+            print("Connecting to {}:{}".format(address, port))
             self.stream = yield self.tcp_client.connect(address, int(port))
             self.stream.set_close_callback(self.on_close)
             print("Connected")
@@ -71,13 +72,27 @@ class LightClient(object):
             except (AttributeError, TypeError):
                 pass
             print(self)
-            # print('Is on: {}, color: {}'.format(self.on, self.color))
 
     def on_close(self):
         if self.stream is not None:
             self.stream.close()
         IOLoop.current().stop()
         sys.exit('Connection closed by server')
+
+
+class MainHandler(web.RequestHandler):
+    def get(self, *args, **kwargs):
+        if hasattr(self, 'netlight'):
+            self.write(self.netlight.__str__())
+
+
+def make_app():
+    settings = {
+        'debug': True,
+    }
+    return web.Application([
+        (r'/', MainHandler),
+    ], **settings)
 
 
 if __name__ == '__main__':
@@ -89,6 +104,10 @@ if __name__ == '__main__':
         except (ValueError, EOFError):
             pass
         client.connect(address, port)
+
+        MainHandler.netlight = client
+        app = make_app()
+        app.listen(port=FRONTEND_PORT, address=ADDRESS)
 
         IOLoop.current().start()
     except KeyboardInterrupt:
