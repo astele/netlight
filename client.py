@@ -22,15 +22,19 @@ class LightClient(object):
         self.on = False
         self.color = self.BLACK
 
+    def __str__(self):
+        return "I'm switched {state} with color {color}".format(
+            state='on' if self.on else 'off',
+            color=self.color
+        )
+
     def set_on(self):
         self.on = True
 
     def set_off(self):
-        self.set_color(self.BLACK)
         self.on = False
 
     def set_color(self, new_color):
-        self.set_on()
         if isinstance(new_color, tuple) and len(new_color) == 3:
             self.color = new_color
 
@@ -60,13 +64,14 @@ class LightClient(object):
         except Exception, e:
             print 'Incorrect command format: {}, tlv: {}'.format(e, (tlv,))
         else:
-            print ctype, length, args
+            # print ctype, length, args
             try:
                 command = getattr(self, self.command_map.get(ctype))
                 command(*args)
             except (AttributeError, TypeError):
                 pass
-            print('Is on: {}, color: {}'.format(self.on, self.color))
+            print(self)
+            # print('Is on: {}, color: {}'.format(self.on, self.color))
 
     def on_close(self):
         if self.stream is not None:
@@ -78,13 +83,13 @@ class LightClient(object):
 if __name__ == '__main__':
     client = LightClient()
     try:
-        address = raw_input('Enter light address:') or ADDRESS
-        port = raw_input('Enter light port:') or PORT
-    except (ValueError, EOFError):
-        pass
-    client.connect(address, port)
+        try:
+            address = raw_input('Enter light address:') or ADDRESS
+            port = raw_input('Enter light port:') or PORT
+        except (ValueError, EOFError):
+            pass
+        client.connect(address, port)
 
-    try:
         IOLoop.current().start()
     except KeyboardInterrupt:
         IOLoop.current().stop()
