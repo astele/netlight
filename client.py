@@ -7,43 +7,46 @@ from tornado.ioloop import IOLoop
 ADDRESS = '127.0.0.1'
 PORT = 9999
 FRONTEND_PORT = 9990
-
+ON_COLOR = (255, 255, 255)
+OFF_COLOR = (0, 0, 0)
 
 class LightClient(object):
-    BLACK = (0, 0, 0)
     command_map = {
-        18: 'set_on',
-        19: 'set_off',
+        18: 'turn_on',
+        19: 'turn_off',
         32: 'set_color'
     }
 
     def __init__(self):
-        self.tcp_client = tcpclient.TCPClient()
+        # self.tcp_client = tcpclient.TCPClient()
         self.stream = None
         self.on = False
-        self.color = self.BLACK
+        self._color = ON_COLOR
 
     def __str__(self):
         return "I'm switched {state} with color {color}".format(
             state='on' if self.on else 'off',
-            color=self.color
+            color=self._color
         )
 
-    def set_on(self):
+    def show_color(self):
+        return self._color if self.on else OFF_COLOR
+
+    def turn_on(self):
         self.on = True
 
-    def set_off(self):
+    def turn_off(self):
         self.on = False
 
     def set_color(self, new_color):
         if isinstance(new_color, tuple) and len(new_color) == 3:
-            self.color = new_color
+            self._color = new_color
 
     @gen.coroutine
     def connect(self, address=ADDRESS, port=PORT):
         try:
-            print("Connecting to {}:{}".format(address, port))
-            self.stream = yield self.tcp_client.connect(address, int(port))
+            print("Connecting to {}:{}...".format(address, port))
+            self.stream = yield tcpclient.TCPClient().connect(address, int(port))
             self.stream.set_close_callback(self.on_close)
             print("Connected")
             self.stream.read_until_close(streaming_callback=self.read_command)
