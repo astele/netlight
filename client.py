@@ -18,7 +18,6 @@ class LightClient(object):
     }
 
     def __init__(self):
-        # self.tcp_client = tcpclient.TCPClient()
         self.stream = None
         self.on = False
         self._color = ON_COLOR
@@ -84,17 +83,19 @@ class LightClient(object):
 
 
 class MainHandler(web.RequestHandler):
+    def initialize(self, netlight):
+        self.netlight = netlight
+
     def get(self, *args, **kwargs):
-        if hasattr(self, 'netlight'):
-            self.write(self.netlight.__str__())
+        self.write(self.netlight.__str__())
 
 
-def make_app():
+def make_app(netlight):
     settings = {
         'debug': True,
     }
     return web.Application([
-        (r'/', MainHandler),
+        (r'/', MainHandler, dict(netlight=netlight)),
     ], **settings)
 
 
@@ -108,8 +109,7 @@ if __name__ == '__main__':
             pass
         client.connect(address, port)
 
-        MainHandler.netlight = client
-        app = make_app()
+        app = make_app(client)
         app.listen(port=FRONTEND_PORT, address=ADDRESS)
 
         IOLoop.current().start()
