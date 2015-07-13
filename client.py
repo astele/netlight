@@ -53,7 +53,8 @@ class LightClient(object):
             self.stream = yield tcpclient.TCPClient().connect(address, int(port))
             self.stream.set_close_callback(self.on_close)
             print("Connected")
-            self.stream.read_until_close(streaming_callback=self.read_command)
+
+            self.stream.read_until_close(streaming_callback=self.dispatch_command)
 
         except Exception, e:
             if self.stream is not None:
@@ -61,23 +62,22 @@ class LightClient(object):
             IOLoop.current().stop()
             sys.exit('Connection error: %s' % e)
 
-    def read_command(self, data):
+    def dispatch_command(self, data):
         args = ()
         try:
             tlv = data.strip().decode('hex')
-            ctype, length = unpack('>bh', tlv[:3])
+            cmd_type, length = unpack('>bh', tlv[:3])
             if length > 0:
-                value = unpack('>%iB' % length, tlv[3:3 + length])
+                value = unpack('>%dB' % length, tlv[3:3+length])
                 args += (value,)
-        except Exception, e:
-            print 'Incorrect command format: {}, data: {}'.format(e, data)
-        else:
-            try:
-                command = getattr(self, self.command_map.get(ctype))
-                command(*args)
-            except (AttributeError, TypeError):
-                pass
+
+            command = getattr(self, self.command_map.get(cmd_type, ''))
+            command(*args)
             print(self)
+        except AttributeError:
+                pass
+        except Exception, e:
+            print('Incorrect command format: {}, data: {}'.format(e, data))
 
     def on_close(self):
         if self.stream is not None:
@@ -105,16 +105,14 @@ def make_app(netlight):
 
 
 if __name__ == '__main__':
-    client = LightClient()
+    netlight_client = LightClient()
     try:
-        try:
-            address = raw_input('Enter light address:') or ADDRESS
-            port = raw_input('Enter light port:') or PORT
-        except (ValueError, EOFError):
-            pass
-        client.connect(address, port)
+        address = raw_input('Enter light address:') or ADDRESS
+        port = raw_input('Enter light port:') or PORT
+        netlight_client.connect(address, port)
 
-        app = make_app(client)
+        # "Monitor" on http://ADDRESS:FRONTEND_PORT
+        app = make_app(netlight_client)
         app.listen(port=FRONTEND_PORT, address=ADDRESS)
 
         IOLoop.current().start()
