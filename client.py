@@ -3,7 +3,7 @@ import os
 from struct import unpack
 import sys
 
-from tornado import gen, tcpclient, web
+from tornado import gen, tcpclient, web, websocket, escape
 from tornado.ioloop import IOLoop
 
 ADDRESS = '127.0.0.1'
@@ -11,6 +11,8 @@ PORT = 9999
 FRONTEND_PORT = 9990
 ON_COLOR = (255, 255, 255)
 OFF_COLOR = (0, 0, 0)
+
+ws_clients = []
 
 
 class LightClient(object):
@@ -35,26 +37,38 @@ class LightClient(object):
         return self._color if self.on else OFF_COLOR
 
     def turn_on(self):
-        self.on = True
-        if self._color == OFF_COLOR:
+        if not self.on:
+            self.on = True
             self.set_color(ON_COLOR)
 
     def turn_off(self):
         self.on = False
+        self.set_color(OFF_COLOR)
 
+    @gen.coroutine
     def set_color(self, new_color):
         if isinstance(new_color, tuple) and len(new_color) == 3:
             self._color = new_color
+            msg = escape.json_encode(
+                {
+                    'on': self.on,
+                    'color': str(self._color)
+                })
+            for client in ws_clients:
+                # print('Sending color %s' % msg)
+                client.write_message(msg)
 
     @gen.coroutine
     def connect(self, address=ADDRESS, port=PORT):
         try:
             print("Connecting to {}:{}...".format(address, port))
-            self.stream = yield tcpclient.TCPClient().connect(address, int(port))
+            self.stream = yield tcpclient.TCPClient().connect(address,
+                                                              int(port))
             self.stream.set_close_callback(self.on_close)
             print("Connected")
 
-            self.stream.read_until_close(streaming_callback=self.dispatch_command)
+            self.stream.read_until_close(
+                streaming_callback=self.dispatch_command)
 
         except Exception, e:
             if self.stream is not None:
@@ -68,14 +82,14 @@ class LightClient(object):
             tlv = data.strip().decode('hex')
             cmd_type, length = unpack('>bh', tlv[:3])
             if length > 0:
-                value = unpack('>%dB' % length, tlv[3:3+length])
+                value = unpack('>%dB' % length, tlv[3:3 + length])
                 args += (value,)
 
             command = getattr(self, self.command_map.get(cmd_type, ''))
             command(*args)
             print(self)
         except AttributeError:
-                pass
+            pass
         except Exception, e:
             print('Incorrect command format: {}, data: {}'.format(e, data))
 
@@ -94,13 +108,32 @@ class MainHandler(web.RequestHandler):
         self.render('index.html', netlight=self.netlight)
 
 
+class WSHandler(websocket.WebSocketHandler):
+    def open(self, *args, **kwargs):
+        print('Netlight socket opened')
+        if self not in ws_clients:
+            ws_clients.append(self)
+
+    def on_message(self, message):
+        msg_text = u'Light said: %s' % message
+        # self.write_message(msg_text)
+        print(msg_text)
+
+    def on_close(self):
+        print('Netlight socket closed')
+        if self in ws_clients:
+            ws_clients.remove(self)
+
+
 def make_app(netlight):
     settings = {
         'debug': True,
         'template_path': os.path.join(os.path.dirname(__file__), 'templates'),
+        'static_path': os.path.join(os.path.dirname(__file__), 'static'),
     }
     return web.Application([
         (r'/', MainHandler, dict(netlight=netlight)),
+        (r'/ws', WSHandler),
     ], **settings)
 
 
